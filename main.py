@@ -67,6 +67,71 @@ for semester in semesters:
         os.makedirs(f"{backup_path}/{semester}/{course}/Course Outline", exist_ok=True)
 
         ############################
+        ####### Lecture Notes ######
+        ############################
+
+        url = f"https://lms.bahria.edu.pk/Student/LectureNotes.php?s={semesters[semester]}&oc={courses[course]}"
+        response = session.get(url, headers=headers)
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        lecture_notes = {
+            cells[1].text.strip(): [
+                [link.get("href") for link in cells[2].find_all("a")],
+            ]
+            for row in soup.select("tr")
+            if (len(cells := row.find_all("td")) > 1)
+        }
+
+        os.makedirs(f"{backup_path}/{semester}/{course}/Lecture Notes", exist_ok=True)
+
+        if not len(lecture_notes):
+            os.rename(
+                f"{backup_path}/{semester}/{course}/Lecture Notes",
+                f"{backup_path}/{semester}/{course}/Lecture Notes (Empty)",
+            )
+
+        for lecture_note in lecture_notes:
+            os.makedirs(
+                f"{backup_path}/{semester}/{course}/Lecture Notes/{lecture_note}",
+                exist_ok=True,
+            )
+
+            url = (
+                f"https://lms.bahria.edu.pk/Student/{lecture_notes[lecture_note][0][0]}"
+            )
+            response = requests.get(url, headers=headers)
+
+            if response.status_code != 200 or not lecture_notes[lecture_note][0][0]:
+                os.rename(
+                    f"{backup_path}/{semester}/{course}/Lecture Notes/{lecture_note}",
+                    f"{backup_path}/{semester}/{course}/Lecture Notes/{lecture_note} (Empty)",
+                )
+                continue
+
+            filename = response.headers["content-disposition"].split('filename="')[1][
+                :-1
+            ]
+            filepath = f"{backup_path}/{semester}/{course}/Lecture Notes/{lecture_note}/{filename}"
+
+            with open(filepath, "wb") as file:
+                file.write(response.content)
+
+            if (
+                len(lecture_notes[lecture_note][0]) > 1
+                and lecture_notes[lecture_note][0][1]
+            ):
+                url = f"https://lms.bahria.edu.pk/Student/{lecture_notes[lecture_note][0][1]}"
+                response = requests.get(url, headers=headers)
+
+                filename = response.headers["content-disposition"].split('filename="')[
+                    1
+                ][:-1]
+                filepath = f"{backup_path}/{semester}/{course}/Lecture Notes/{lecture_note}/{filename}"
+
+                with open(filepath, "wb") as file:
+                    file.write(response.content)
+
+        ############################
         ######## Assignments #######
         ############################
 
