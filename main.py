@@ -64,8 +64,71 @@ for semester in semesters:
     courses.pop("Select Course")
 
     for course in courses:
-        os.makedirs(f"{backup_path}/{semester}/{course}", exist_ok=True)
         os.makedirs(f"{backup_path}/{semester}/{course}/Course Outline", exist_ok=True)
+
+        ############################
+        ########## Quizzes #########
+        ############################
+
+        url = f"https://lms.bahria.edu.pk/Student/Quizzes.php?s={semesters[semester]}&oc={courses[course]}"
+        response = session.get(url, headers=headers)
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        quizzes = {
+            cells[1].text.strip(): [
+                cells[2].find("a").get("href") if cells[2].find("a") else "",
+                cells[4].find("a").get("href") if cells[4].find("a") else "",
+            ]
+            for row in soup.select("tr")
+            if (len(cells := row.find_all("td")) > 1)
+        }
+
+        os.makedirs(f"{backup_path}/{semester}/{course}/Quizzes", exist_ok=True)
+
+        if not len(quizzes):
+            os.rename(
+                f"{backup_path}/{semester}/{course}/Quizzes",
+                f"{backup_path}/{semester}/{course}/Quizzes (Empty)",
+            )
+
+        for quiz in quizzes:
+            os.makedirs(
+                f"{backup_path}/{semester}/{course}/Quizzes/{quiz}", exist_ok=True
+            )
+
+            url = f"https://lms.bahria.edu.pk/Student/{quizzes[quiz][0]}"
+            response = requests.get(url, headers=headers)
+
+            if response.status_code != 200 or not quizzes[quiz][0]:
+                os.rename(
+                    f"{backup_path}/{semester}/{course}/Quizzes/{quiz}",
+                    f"{backup_path}/{semester}/{course}/Quizzes/{quiz} (Empty)",
+                )
+                continue
+
+            filename = response.headers["content-disposition"].split('filename="')[1][
+                :-1
+            ]
+            filepath = f"{backup_path}/{semester}/{course}/Quizzes/{quiz}/{filename}"
+
+            with open(filepath, "wb") as file:
+                file.write(response.content)
+
+            if quizzes[quiz][1]:
+                url = f"https://lms.bahria.edu.pk/Student/{quizzes[quiz][1]}"
+                response = requests.get(url, headers=headers)
+
+                filename = response.headers["content-disposition"].split('filename="')[
+                    1
+                ][:-1]
+                filepath = f"{backup_path}/{semester}/{course}/Quizzes/{quiz}/Solution - {filename}"
+
+                with open(filepath, "wb") as file:
+                    file.write(response.content)
+
+    ############################
+    ###### Course Outline ######
+    ############################
 
     url = f"https://lms.bahria.edu.pk/Student/CourseOutline.php?s={semesters[semester]}"
     response = session.get(url, headers=headers)
