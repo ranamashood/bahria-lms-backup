@@ -67,6 +67,83 @@ for semester in semesters:
         os.makedirs(f"{backup_path}/{semester}/{course}/Course Outline", exist_ok=True)
 
         ############################
+        ######## Assignments #######
+        ############################
+
+        url = f"https://lms.bahria.edu.pk/Student/Assignments.php?s={semesters[semester]}&oc={courses[course]}"
+        response = session.get(url, headers=headers)
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        assignments = {
+            cells[1].text.strip(): [
+                [link.get("href") for link in cells[2].find_all("a")],
+                cells[3].find("a").get("href") if cells[3].find("a") else "",
+            ]
+            for row in soup.select("tr")
+            if (len(cells := row.find_all("td")) > 1)
+        }
+
+        os.makedirs(f"{backup_path}/{semester}/{course}/Assignments", exist_ok=True)
+
+        if not len(assignments):
+            os.rename(
+                f"{backup_path}/{semester}/{course}/Assignments",
+                f"{backup_path}/{semester}/{course}/Assignments (Empty)",
+            )
+
+        for assignment in assignments:
+            os.makedirs(
+                f"{backup_path}/{semester}/{course}/Assignments/{assignment}",
+                exist_ok=True,
+            )
+
+            url = f"https://lms.bahria.edu.pk/Student/{assignments[assignment][0][0]}"
+            response = requests.get(url, headers=headers)
+
+            if response.status_code != 200 or not assignments[assignment][0][0]:
+                os.rename(
+                    f"{backup_path}/{semester}/{course}/Assignments/{assignment}",
+                    f"{backup_path}/{semester}/{course}/Assignments/{assignment} (Empty)",
+                )
+                continue
+
+            filename = response.headers["content-disposition"].split('filename="')[1][
+                :-1
+            ]
+            filepath = (
+                f"{backup_path}/{semester}/{course}/Assignments/{assignment}/{filename}"
+            )
+
+            with open(filepath, "wb") as file:
+                file.write(response.content)
+
+            if len(assignments[assignment][0]) > 1 and assignments[assignment][0][1]:
+                url = (
+                    f"https://lms.bahria.edu.pk/Student/{assignments[assignment][0][1]}"
+                )
+                response = requests.get(url, headers=headers)
+
+                filename = response.headers["content-disposition"].split('filename="')[
+                    1
+                ][:-1]
+                filepath = f"{backup_path}/{semester}/{course}/Assignments/{assignment}/Solution - {filename}"
+
+                with open(filepath, "wb") as file:
+                    file.write(response.content)
+
+            if assignments[assignment][1]:
+                url = f"https://lms.bahria.edu.pk/Student/{assignments[assignment][1]}"
+                response = requests.get(url, headers=headers)
+
+                filename = response.headers["content-disposition"].split('filename="')[
+                    1
+                ][:-1]
+                filepath = f"{backup_path}/{semester}/{course}/Assignments/{assignment}/{filename}"
+
+                with open(filepath, "wb") as file:
+                    file.write(response.content)
+
+        ############################
         ########## Quizzes #########
         ############################
 
