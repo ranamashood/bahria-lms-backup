@@ -71,14 +71,27 @@ for semester in semesters:
     response = session.get(url, headers=headers)
     soup = BeautifulSoup(response.text, "html.parser")
 
-    course_current = 0
-    for a_tag in soup.select("td a"):
-        url = f"https://lms.bahria.edu.pk/Student/{a_tag.get('href')}"
+    course_outlines = {
+        cells[1].text.strip(): (
+            cells[2].find("a").get("href") if cells[2].find("a") else ""
+        )
+        for row in soup.select("tr")
+        if (cells := row.find_all("td"))
+    }
+
+    for course in course_outlines:
+        url = f"https://lms.bahria.edu.pk/Student/{course_outlines[course]}"
         response = requests.get(url, headers=headers)
+
+        if response.status_code != 200 or not course_outlines[course]:
+            os.rename(
+                f"{backup_path}/{semester}/{course}/Course Outline",
+                f"{backup_path}/{semester}/{course}/Course Outline (Empty)",
+            )
+            continue
+
         filename = response.headers["content-disposition"].split('filename="')[1][:-1]
-        filepath = f"{backup_path}/{semester}/{list(courses.keys())[course_current]}/Course Outline/{filename}"
+        filepath = f"{backup_path}/{semester}/{course}/Course Outline/{filename}"
 
         with open(filepath, "wb") as file:
             file.write(response.content)
-
-        course_current += 1
