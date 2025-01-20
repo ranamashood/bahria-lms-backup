@@ -67,6 +67,71 @@ for semester in semesters:
         os.makedirs(f"{backup_path}/{semester}/{course}/Course Outline", exist_ok=True)
 
         ############################
+        ########## Papers ##########
+        ############################
+
+        url = f"https://lms.bahria.edu.pk/Student/Papers.php?s={semesters[semester]}&oc={courses[course]}"
+        response = session.get(url, headers=headers)
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        papers = {
+            cells[1].text.strip(): [
+                cells[2].find("a").get("href") if cells[2].find("a") else "",
+                cells[4].find("a").get("href") if cells[4].find("a") else "",
+            ]
+            for row in soup.select("tr")
+            if (len(cells := row.find_all("td")) > 1)
+        }
+
+        os.makedirs(f"{backup_path}/{semester}/{course}/Papers", exist_ok=True)
+
+        if not len(papers):
+            os.rename(
+                f"{backup_path}/{semester}/{course}/Papers",
+                f"{backup_path}/{semester}/{course}/Papers (Empty)",
+            )
+
+        for paper in papers:
+            os.makedirs(
+                f"{backup_path}/{semester}/{course}/Papers/{paper}", exist_ok=True
+            )
+
+            url = f"https://lms.bahria.edu.pk/Student/{papers[paper][0]}"
+            response = requests.get(url, headers=headers)
+
+            if response.status_code != 200 or not papers[paper][0]:
+                os.rename(
+                    f"{backup_path}/{semester}/{course}/Papers/{paper}",
+                    f"{backup_path}/{semester}/{course}/Papers/{paper} (Empty)",
+                )
+                continue
+
+            filename = response.headers["content-disposition"].split('filename="')[1][
+                :-1
+            ]
+            filepath = f"{backup_path}/{semester}/{course}/Papers/{paper}/{filename}"
+
+            with open(filepath, "wb") as file:
+                file.write(response.content)
+
+            if papers[paper][1]:
+                url = f"https://lms.bahria.edu.pk/Student/{papers[paper][1]}"
+                response = requests.get(url, headers=headers)
+
+                if response.status_code != 200:
+                    continue
+
+                filename = response.headers["content-disposition"].split('filename="')[
+                    1
+                ][:-1]
+                filepath = (
+                    f"{backup_path}/{semester}/{course}/Papers/{paper}/{filename}"
+                )
+
+                with open(filepath, "wb") as file:
+                    file.write(response.content)
+
+        ############################
         ####### Lecture Notes ######
         ############################
 
