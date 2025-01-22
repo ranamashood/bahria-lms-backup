@@ -1,16 +1,13 @@
-from dotenv import load_dotenv
 import requests
 import os
 from bs4 import BeautifulSoup
-
-load_dotenv()
 
 backup_path = "LMS Backup"
 os.makedirs(backup_path, exist_ok=True)
 
 session = requests.Session()
 
-session_cookie = os.getenv("SESSION_COOKIE")
+session_cookie = input("Enter session cookie: ")
 
 if not session_cookie:
     raise SystemExit("Set session cookie value first")
