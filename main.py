@@ -159,18 +159,18 @@ def download_item(
         )
 
     for i, item in enumerate(items):
-        dir_path = f"{dir_path}/{i} - {item}"
+        new_dir_path = f"{dir_path}/{i + 1:02} - {item}"
 
-        os.makedirs(dir_path, exist_ok=True)
+        os.makedirs(new_dir_path, exist_ok=True)
 
         for upload in items[item]["upload"]:
-            download_file(upload, dir_path, "Upload")
+            download_file(upload, new_dir_path, "Upload")
 
         if items[item].get("submission"):
-            download_file(items[item]["submission"], dir_path, "Submission")
+            download_file(items[item]["submission"], new_dir_path, "Submission")
 
         if items[item].get("solution"):
-            download_file(items[item]["solution"], dir_path, "Solution")
+            download_file(items[item]["solution"], new_dir_path, "Solution")
 
 
 for semester in semesters:
