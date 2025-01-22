@@ -2,9 +2,6 @@ import requests
 import os
 from bs4 import BeautifulSoup
 
-backup_path = "LMS Backup"
-os.makedirs(backup_path, exist_ok=True)
-
 session = requests.Session()
 
 session_cookie = input("Enter session cookie: ")
@@ -28,6 +25,9 @@ if response.url != url:
     raise SystemExit("Session cookie value is not correct")
 
 print("Logged in to LMS")
+
+backup_path = "LMS Backup"
+os.makedirs(backup_path, exist_ok=True)
 
 soup = BeautifulSoup(response.text, "html.parser")
 
