@@ -38,7 +38,7 @@ url = "https://lms.bahria.edu.pk/Student/CourseOutline.php"
 response = session.get(url, headers=headers)
 
 semesters = {
-    option.text.strip(): option["value"]
+    option.text.strip(): str(option["value"])
     for option in reversed(soup.select("#semesterId option"))
 }
 
@@ -50,6 +50,130 @@ for key, value in list(semesters.items()):
     if len(soup.select("table td")) == 1:
         semesters.pop(key)
 
+
+def download_file(url_param: str, dir_path: str, prefix: str):
+    if not url_param:
+        return
+
+    if prefix:
+        prefix += " - "
+
+    url = f"https://lms.bahria.edu.pk/Student/{url_param}"
+    response = requests.get(url, headers=headers)
+
+    if response.status_code != 200:
+        return
+
+    filename = response.headers["content-disposition"].split('filename="')[1][:-1]
+    filepath = f"{dir_path}/{prefix}{filename}"
+
+    with open(filepath, "wb") as file:
+        file.write(response.content)
+
+
+def get_soup(url: str):
+    response = session.get(url, headers=headers)
+    return BeautifulSoup(response.text, "html.parser")
+
+
+def scrape_papers(soup: BeautifulSoup):
+    items = {
+        cells[1].text.strip(): {
+            "upload": [cells[2].find("a").get("href") if cells[2].find("a") else ""],
+            "submission": cells[4].find("a").get("href") if cells[4].find("a") else "",
+        }
+        for row in soup.select("tr")
+        if (len(cells := row.find_all("td")) > 1)
+    }
+
+    return items
+
+
+def scrape_lecture_notes(soup: BeautifulSoup):
+    items = {
+        cells[1].text.strip(): {
+            "upload": [link.get("href") for link in cells[2].find_all("a")],
+        }
+        for row in soup.select("tr")
+        if (len(cells := row.find_all("td")) > 1)
+    }
+
+    return items
+
+
+def scrape_assignments(soup: BeautifulSoup):
+    items = {
+        cells[1].text.strip(): {
+            "upload": [cells[2].find("a").get("href") if cells[2].find("a") else ""],
+            "submission": cells[3].find("a").get("href") if cells[3].find("a") else "",
+            "solution": cells[2].find_all("a")[-1]["href"]
+            if len(cells[2].find_all("a")) == 2
+            else "",
+        }
+        for row in soup.select("tr")
+        if (len(cells := row.find_all("td")) > 1)
+    }
+
+    return items
+
+
+def scrape_quizzes(soup: BeautifulSoup):
+    items = {
+        cells[1].text.strip(): {
+            "upload": [cells[2].find("a").get("href") if cells[2].find("a") else ""],
+            "solution": cells[4].find("a").get("href") if cells[4].find("a") else "",
+        }
+        for row in soup.select("tr")
+        if (len(cells := row.find_all("td")) > 1)
+    }
+
+    return items
+
+
+data = [
+    {"name": "Papers", "scraper": scrape_papers},
+    {"name": "Lecture Notes", "scraper": scrape_lecture_notes},
+    {"name": "Assignments", "scraper": scrape_assignments},
+    {"name": "Quizzes", "scraper": scrape_quizzes},
+]
+
+
+def download_item(
+    item: dict, semester: str, course: str, semester_id: str, course_id: str
+):
+    name = item["name"].replace(" ", "")
+
+    # won: with out name
+    dir_path_won = f"{backup_path}/{semester}/{course}"
+    dir_path = f"{backup_path}/{semester}/{course}/{item['name']}"
+
+    soup = get_soup(
+        f"https://lms.bahria.edu.pk/Student/{name}.php?s={semester_id}&oc={course_id}"
+    )
+
+    items = item["scraper"](soup)
+
+    os.makedirs(dir_path, exist_ok=True)
+
+    if not len(items):
+        os.rename(
+            dir_path,
+            f"{dir_path_won}/{item['name']} (Empty)",
+        )
+
+    for item in items:
+        os.makedirs(f"{dir_path}/{item}", exist_ok=True)
+
+        for upload in items[item]["upload"]:
+            download_file(upload, f"{dir_path}/{item}", "Upload")
+
+        if items[item].get("submission"):
+            download_file(items[item]["submission"], f"{dir_path}/{item}", "Submission")
+
+        if items[item].get("solution"):
+            download_file(items[item]["solution"], f"{dir_path}/{item}", "Solution")
+
+
 for semester in semesters:
     os.makedirs(f"{backup_path}/{semester}", exist_ok=True)
 
@@ -58,7 +182,7 @@ for semester in semesters:
     soup = BeautifulSoup(response.text, "html.parser")
 
     courses = {
-        option.text.strip(): option["value"]
+        option.text.strip(): str(option["value"])
         for option in soup.select("#courseId option")
     }
     courses.pop("Select Course")
@@ -66,272 +190,8 @@ for semester in semesters:
     for course in courses:
         os.makedirs(f"{backup_path}/{semester}/{course}/Course Outline", exist_ok=True)
 
-        ############################
-        ########## Papers ##########
-        ############################
-
-        url = f"https://lms.bahria.edu.pk/Student/Papers.php?s={semesters[semester]}&oc={courses[course]}"
-        response = session.get(url, headers=headers)
-        soup = BeautifulSoup(response.text, "html.parser")
-
-        papers = {
-            cells[1].text.strip(): [
-                cells[2].find("a").get("href") if cells[2].find("a") else "",
-                cells[4].find("a").get("href") if cells[4].find("a") else "",
-            ]
-            for row in soup.select("tr")
-            if (len(cells := row.find_all("td")) > 1)
-        }
-
-        os.makedirs(f"{backup_path}/{semester}/{course}/Papers", exist_ok=True)
-
-        if not len(papers):
-            os.rename(
-                f"{backup_path}/{semester}/{course}/Papers",
-                f"{backup_path}/{semester}/{course}/Papers (Empty)",
-            )
-
-        for paper in papers:
-            os.makedirs(
-                f"{backup_path}/{semester}/{course}/Papers/{paper}", exist_ok=True
-            )
-
-            url = f"https://lms.bahria.edu.pk/Student/{papers[paper][0]}"
-            response = requests.get(url, headers=headers)
-
-            if response.status_code != 200 or not papers[paper][0]:
-                os.rename(
-                    f"{backup_path}/{semester}/{course}/Papers/{paper}",
-                    f"{backup_path}/{semester}/{course}/Papers/{paper} (Empty)",
-                )
-                continue
-
-            filename = response.headers["content-disposition"].split('filename="')[1][
-                :-1
-            ]
-            filepath = f"{backup_path}/{semester}/{course}/Papers/{paper}/{filename}"
-
-            with open(filepath, "wb") as file:
-                file.write(response.content)
-
-            if papers[paper][1]:
-                url = f"https://lms.bahria.edu.pk/Student/{papers[paper][1]}"
-                response = requests.get(url, headers=headers)
-
-                if response.status_code != 200:
-                    continue
-
-                filename = response.headers["content-disposition"].split('filename="')[
-                    1
-                ][:-1]
-                filepath = (
-                    f"{backup_path}/{semester}/{course}/Papers/{paper}/{filename}"
-                )
-
-                with open(filepath, "wb") as file:
-                    file.write(response.content)
-
-        ############################
-        ####### Lecture Notes ######
-        ############################
-
-        url = f"https://lms.bahria.edu.pk/Student/LectureNotes.php?s={semesters[semester]}&oc={courses[course]}"
-        response = session.get(url, headers=headers)
-        soup = BeautifulSoup(response.text, "html.parser")
-
-        lecture_notes = {
-            cells[1].text.strip(): [
-                [link.get("href") for link in cells[2].find_all("a")],
-            ]
-            for row in soup.select("tr")
-            if (len(cells := row.find_all("td")) > 1)
-        }
-
-        os.makedirs(f"{backup_path}/{semester}/{course}/Lecture Notes", exist_ok=True)
-
-        if not len(lecture_notes):
-            os.rename(
-                f"{backup_path}/{semester}/{course}/Lecture Notes",
-                f"{backup_path}/{semester}/{course}/Lecture Notes (Empty)",
-            )
-
-        for lecture_note in lecture_notes:
-            os.makedirs(
-                f"{backup_path}/{semester}/{course}/Lecture Notes/{lecture_note}",
-                exist_ok=True,
-            )
-
-            url = (
-                f"https://lms.bahria.edu.pk/Student/{lecture_notes[lecture_note][0][0]}"
-            )
-            response = requests.get(url, headers=headers)
-
-            if response.status_code != 200 or not lecture_notes[lecture_note][0][0]:
-                os.rename(
-                    f"{backup_path}/{semester}/{course}/Lecture Notes/{lecture_note}",
-                    f"{backup_path}/{semester}/{course}/Lecture Notes/{lecture_note} (Empty)",
-                )
-                continue
-
-            filename = response.headers["content-disposition"].split('filename="')[1][
-                :-1
-            ]
-            filepath = f"{backup_path}/{semester}/{course}/Lecture Notes/{lecture_note}/{filename}"
-
-            with open(filepath, "wb") as file:
-                file.write(response.content)
-
-            if (
-                len(lecture_notes[lecture_note][0]) > 1
-                and lecture_notes[lecture_note][0][1]
-            ):
-                url = f"https://lms.bahria.edu.pk/Student/{lecture_notes[lecture_note][0][1]}"
-                response = requests.get(url, headers=headers)
-
-                filename = response.headers["content-disposition"].split('filename="')[
-                    1
-                ][:-1]
-                filepath = f"{backup_path}/{semester}/{course}/Lecture Notes/{lecture_note}/{filename}"
-
-                with open(filepath, "wb") as file:
-                    file.write(response.content)
-
-        ############################
-        ######## Assignments #######
-        ############################
-
-        url = f"https://lms.bahria.edu.pk/Student/Assignments.php?s={semesters[semester]}&oc={courses[course]}"
-        response = session.get(url, headers=headers)
-        soup = BeautifulSoup(response.text, "html.parser")
-
-        assignments = {
-            cells[1].text.strip(): [
-                [link.get("href") for link in cells[2].find_all("a")],
-                cells[3].find("a").get("href") if cells[3].find("a") else "",
-            ]
-            for row in soup.select("tr")
-            if (len(cells := row.find_all("td")) > 1)
-        }
-
-        os.makedirs(f"{backup_path}/{semester}/{course}/Assignments", exist_ok=True)
-
-        if not len(assignments):
-            os.rename(
-                f"{backup_path}/{semester}/{course}/Assignments",
-                f"{backup_path}/{semester}/{course}/Assignments (Empty)",
-            )
-
-        for assignment in assignments:
-            os.makedirs(
-                f"{backup_path}/{semester}/{course}/Assignments/{assignment}",
-                exist_ok=True,
-            )
-
-            url = f"https://lms.bahria.edu.pk/Student/{assignments[assignment][0][0]}"
-            response = requests.get(url, headers=headers)
-
-            if response.status_code != 200 or not assignments[assignment][0][0]:
-                os.rename(
-                    f"{backup_path}/{semester}/{course}/Assignments/{assignment}",
-                    f"{backup_path}/{semester}/{course}/Assignments/{assignment} (Empty)",
-                )
-                continue
-
-            filename = response.headers["content-disposition"].split('filename="')[1][
-                :-1
-            ]
-            filepath = (
-                f"{backup_path}/{semester}/{course}/Assignments/{assignment}/{filename}"
-            )
-
-            with open(filepath, "wb") as file:
-                file.write(response.content)
-
-            if len(assignments[assignment][0]) > 1 and assignments[assignment][0][1]:
-                url = (
-                    f"https://lms.bahria.edu.pk/Student/{assignments[assignment][0][1]}"
-                )
-                response = requests.get(url, headers=headers)
-
-                filename = response.headers["content-disposition"].split('filename="')[
-                    1
-                ][:-1]
-                filepath = f"{backup_path}/{semester}/{course}/Assignments/{assignment}/Solution - {filename}"
-
-                with open(filepath, "wb") as file:
-                    file.write(response.content)
-
-            if assignments[assignment][1]:
-                url = f"https://lms.bahria.edu.pk/Student/{assignments[assignment][1]}"
-                response = requests.get(url, headers=headers)
-
-                filename = response.headers["content-disposition"].split('filename="')[
-                    1
-                ][:-1]
-                filepath = f"{backup_path}/{semester}/{course}/Assignments/{assignment}/{filename}"
-
-                with open(filepath, "wb") as file:
-                    file.write(response.content)
-
-        ############################
-        ########## Quizzes #########
-        ############################
-
-        url = f"https://lms.bahria.edu.pk/Student/Quizzes.php?s={semesters[semester]}&oc={courses[course]}"
-        response = session.get(url, headers=headers)
-        soup = BeautifulSoup(response.text, "html.parser")
-
-        quizzes = {
-            cells[1].text.strip(): [
-                cells[2].find("a").get("href") if cells[2].find("a") else "",
-                cells[4].find("a").get("href") if cells[4].find("a") else "",
-            ]
-            for row in soup.select("tr")
-            if (len(cells := row.find_all("td")) > 1)
-        }
-
-        os.makedirs(f"{backup_path}/{semester}/{course}/Quizzes", exist_ok=True)
-
-        if not len(quizzes):
-            os.rename(
-                f"{backup_path}/{semester}/{course}/Quizzes",
-                f"{backup_path}/{semester}/{course}/Quizzes (Empty)",
-            )
-
-        for quiz in quizzes:
-            os.makedirs(
-                f"{backup_path}/{semester}/{course}/Quizzes/{quiz}", exist_ok=True
-            )
-
-            url = f"https://lms.bahria.edu.pk/Student/{quizzes[quiz][0]}"
-            response = requests.get(url, headers=headers)
-
-            if response.status_code != 200 or not quizzes[quiz][0]:
-                os.rename(
-                    f"{backup_path}/{semester}/{course}/Quizzes/{quiz}",
-                    f"{backup_path}/{semester}/{course}/Quizzes/{quiz} (Empty)",
-                )
-                continue
-
-            filename = response.headers["content-disposition"].split('filename="')[1][
-                :-1
-            ]
-            filepath = f"{backup_path}/{semester}/{course}/Quizzes/{quiz}/{filename}"
-
-            with open(filepath, "wb") as file:
-                file.write(response.content)
-
-            if quizzes[quiz][1]:
-                url = f"https://lms.bahria.edu.pk/Student/{quizzes[quiz][1]}"
-                response = requests.get(url, headers=headers)
-
-                filename = response.headers["content-disposition"].split('filename="')[
-                    1
-                ][:-1]
-                filepath = f"{backup_path}/{semester}/{course}/Quizzes/{quiz}/Solution - {filename}"
-
-                with open(filepath, "wb") as file:
-                    file.write(response.content)
+        for item in data:
+            download_item(item, semester, course, semesters[semester], courses[course])
 
     ############################
     ###### Course Outline ######
