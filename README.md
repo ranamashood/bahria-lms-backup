@@ -33,3 +33,17 @@ pip install -r requirements.txt
 ```bash
 python main.py
 ```
+
+It will then ask for a session cookie. You can use any of the following methods to get that cookie.
+
+#### Manual
+
+Open Bahria LMS, open the console in the browser and then copy and paste the following text into the console.
+
+```js
+document.cookie.split("=")[1];
+```
+
+#### Automatic (Chrome Extension)
+
+You can install my [extension](https://github.com/ranamashood/bahria-tools) to get the session cookie.
