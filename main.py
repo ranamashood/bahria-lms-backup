@@ -2,6 +2,7 @@ import requests
 import os
 from bs4 import BeautifulSoup
 from pathvalidate import sanitize_filename
+from tqdm import tqdm
 
 session = requests.Session()
 
@@ -159,7 +160,11 @@ def download_item(
             f"{dir_path_won}/{item['name']} (Empty)",
         )
 
-    for i, item in enumerate(items):
+        return
+
+    tqdm_desc = f"{semester} - {course} - {item['name']}"
+
+    for i, item in enumerate(tqdm(items, desc=tqdm_desc)):
         sanitized_item = sanitize_filename(item)
         new_dir_path = f"{dir_path}/{i + 1:02} - {sanitized_item}"
 

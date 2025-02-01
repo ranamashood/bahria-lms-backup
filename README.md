@@ -33,7 +33,3 @@ pip install -r requirements.txt
 ```bash
 python main.py
 ```
-
-## TODOs
-
-- [ ] Proper logging for downloading stuff
