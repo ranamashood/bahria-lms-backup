@@ -1,6 +1,7 @@
 import requests
 import os
 from bs4 import BeautifulSoup
+from pathvalidate import sanitize_filename
 
 session = requests.Session()
 
@@ -159,7 +160,8 @@ def download_item(
         )
 
     for i, item in enumerate(items):
-        new_dir_path = f"{dir_path}/{i + 1:02} - {item}"
+        sanitized_item = sanitize_filename(item)
+        new_dir_path = f"{dir_path}/{i + 1:02} - {sanitized_item}"
 
         os.makedirs(new_dir_path, exist_ok=True)
 
