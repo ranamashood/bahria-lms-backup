@@ -11,6 +11,8 @@ session_cookie = input("Enter session cookie: ")
 if not session_cookie:
     raise SystemExit("Set session cookie value first")
 
+session_cookie = session_cookie.replace('"', "")
+
 cookies = {
     "PHPSESSID": session_cookie,
 }
